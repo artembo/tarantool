@@ -161,6 +161,9 @@ static struct fiber_pool tx_fiber_pool;
 static struct cbus_endpoint tx_prio_endpoint;
 
 void
+box_status_broadcast(void);
+
+void
 box_update_ro_summary(void)
 {
 	bool old_is_ro_summary = is_ro_summary;
@@ -173,6 +176,8 @@ box_update_ro_summary(void)
 	if (is_ro_summary)
 		engine_switch_to_ro();
 	fiber_cond_broadcast(&ro_cond);
+	/* Checking box.info.ro change */
+	box_status_broadcast();
 }
 
 const char *
@@ -377,9 +382,11 @@ box_set_orphan(bool orphan)
 	if (is_orphan) {
 		say_crit("entering orphan mode");
 		title("orphan");
+		box_status_broadcast();
 	} else {
 		say_crit("leaving orphan mode");
 		title("running");
+		box_status_broadcast();
 	}
 }
 
@@ -3508,6 +3515,7 @@ local_recovery(const struct tt_uuid *instance_uuid,
 	 */
 	if (wal_dir_lock < 0) {
 		title("hot_standby");
+		box_status_broadcast();
 		say_info("Entering hot standby mode");
 		engine_begin_hot_standby_xc();
 		recovery_follow_local(recovery, &wal_stream.base, "hot_standby",
@@ -3643,6 +3651,7 @@ box_cfg_xc(void)
 	}
 
 	title("loading");
+	box_status_broadcast();
 
 	struct tt_uuid instance_uuid, replicaset_uuid;
 	box_check_instance_uuid(&instance_uuid);
@@ -3766,6 +3775,7 @@ box_cfg_xc(void)
 		diag_raise();
 
 	title("running");
+	box_status_broadcast();
 	say_info("ready to accept requests");
 
 	if (!is_bootstrap_leader) {
@@ -3800,6 +3810,8 @@ box_cfg_xc(void)
 	assert(box_is_ro());
 	/* If anyone is waiting for ro mode. */
 	fiber_cond_broadcast(&ro_cond);
+	/* Checking box.cfg.read_only change */
+	box_status_broadcast();
 	/*
 	 * Yield to let ro condition waiters to handle the event.
 	 * Without yield it may happen there won't be a context
@@ -3902,4 +3914,23 @@ box_reset_stat(void)
 	rmean_cleanup(rmean_error);
 	engine_reset_stat();
 	space_foreach(box_reset_space_stat, NULL);
+}
+
+void
+box_status_broadcast(void)
+{
+
+	char buf[64];
+	char *w = buf;
+
+	w = mp_encode_map(w, 3);
+	w = mp_encode_str(w, "is_ro", strlen("is_ro"));
+	w = mp_encode_bool(w, box_is_ro());
+	w = mp_encode_str(w, "is_ro_cfg", strlen("is_ro_cfg"));
+	w = mp_encode_bool(w, cfg_geti("read_only"));
+	w = mp_encode_str(w, "status", strlen("status"));
+	w = mp_encode_str(w, box_status(), strlen(box_status));
+
+	box_broadcast("box.status", strlen("box.status"), w,
+		      w + mp_sizeof_map(3));
 }
