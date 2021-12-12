@@ -34,6 +34,7 @@
 #include "iproto_constants.h"
 #include "journal.h"
 #include "box.h"
+#include "errinj.h"
 
 struct txn_limbo txn_limbo;
 
@@ -704,6 +705,7 @@ txn_limbo_wait_confirm(struct txn_limbo *limbo)
 int
 txn_limbo_wait_empty(struct txn_limbo *limbo, double timeout)
 {
+	ERROR_INJECT_YIELD(ERRINJ_TXN_LIMBO_EMPTY_DELAY);
 	if (txn_limbo_is_empty(limbo))
 		return 0;
 	bool is_rollback;

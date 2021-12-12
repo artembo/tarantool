@@ -118,6 +118,33 @@ function Server:wait_election_leader_found()
                      function() return box.info.election.leader ~= 0 end)
 end
 
+function Server:wait_election_state(state)
+    return wait_cond('election state', self, self.exec, self, function(state)
+        return box.info.election.state == state
+    end, {state})
+end
+
+function Server:wait_synchro_queue_owner(id)
+    if id == nil then
+        id = self:instance_id()
+    end
+
+    return wait_cond('synchro queue owner', self, self.exec, self, function(id)
+        return box.info.synchro.queue.owner == id
+    end, {id})
+end
+
+function Server:wait_synchro_queue_owner_found()
+    return wait_cond('synchro queue owner is found', self, self.exec, self,
+                     function() return box.info.synchro.queue.owner ~= 0 end)
+end
+
+function Server:wait_wal_write_count(count)
+    return wait_cond('wait wal write count', self, self.exec, self, function(count)
+        return box.error.injection.get('ERRINJ_WAL_WRITE_COUNT') >= count
+    end, {count})
+end
+
 -- Unlike the original luatest.Server function it waits for
 -- starting the server.
 function Server:start(opts)
@@ -158,6 +185,10 @@ function Server:instance_uuid()
     local uuid = self:exec(function() return box.info.uuid end)
     self.instance_uuid_value = uuid
     return uuid
+end
+
+function Server:box_config(config)
+    return self:exec(function(config) return box.cfg(config) end, {config})
 end
 
 -- TODO: Add the 'wait_for_readiness' parameter for the restart()

@@ -29,6 +29,7 @@
  * SUCH DAMAGE.
  */
 #include "box.h"
+#include "errinj.h"
 #include "error.h"
 #include "journal.h"
 #include "raft.h"
@@ -94,6 +95,8 @@ box_raft_update_synchro_queue(struct raft *raft)
 		return;
 	int rc = 0;
 	uint32_t errcode = 0;
+
+	ERROR_INJECT_YIELD(ERRINJ_BOX_RAFT_SYNCHRO_QUEUE_DELAY);
 	do {
 		rc = box_promote_qsync();
 		if (rc != 0) {
