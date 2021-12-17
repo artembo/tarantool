@@ -2598,6 +2598,7 @@ box.schema.func.create = function(name, opts)
     check_param_table(opts, { setuid = 'boolean',
                               if_not_exists = 'boolean',
                               language = 'string', body = 'string',
+                              aggregate = 'string',
                               is_deterministic = 'boolean',
                               is_sandboxed = 'boolean',
                               is_multikey = 'boolean',

@@ -3498,6 +3498,11 @@ func_def_new_from_tuple(struct tuple *tuple)
 		def->exports.lua = true;
 		def->param_count = 0;
 	}
+	if (def->aggregate == FUNC_AGGREGATE_GROUP && def->exports.lua != 0) {
+		diag_set(ClientError, ER_CREATE_FUNCTION, def->name,
+			 "aggregate function can only be accessed in SQL");
+		return NULL;
+	}
 	if (func_def_check(def) != 0)
 		return NULL;
 	def_guard.is_active = false;

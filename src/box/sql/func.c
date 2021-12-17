@@ -2072,9 +2072,12 @@ uint32_t
 sql_func_flags(const char *name)
 {
 	struct sql_func_dictionary *dict = built_in_func_get(name);
-	if (dict == NULL)
+	if (dict != NULL)
+		return dict->flags;
+	struct func *func = func_by_name(name, strlen(name));
+	if (func == NULL || func->def->aggregate != FUNC_AGGREGATE_GROUP)
 		return 0;
-	return dict->flags;
+	return SQL_FUNC_AGG;
 }
 
 static struct func_vtab func_sql_builtin_vtab;
@@ -2176,5 +2179,7 @@ func_sql_builtin_destroy(struct func *func)
 
 static struct func_vtab func_sql_builtin_vtab = {
 	.call = func_sql_builtin_call_stub,
+	.step = func_sql_builtin_call_stub,
+	.finalize = func_sql_builtin_call_stub,
 	.destroy = func_sql_builtin_destroy,
 };

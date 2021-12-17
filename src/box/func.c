@@ -492,8 +492,36 @@ func_c_call(struct func *base, struct port *args, struct port *ret)
 	return module_func_call(&func->mf, args, ret);
 }
 
+static int
+func_c_step(struct func *base, struct port *args, struct port *ret)
+{
+	assert(base->vtab == &func_c_vtab);
+	assert(base != NULL && base->def->language == FUNC_LANGUAGE_C);
+	(void)base;
+	(void)args;
+	(void)ret;
+	diag_set(ClientError, ER_UNSUPPORTED, "SQL", "user-defined C aggregate "
+		 "functions");
+	return -1;
+}
+
+static int
+func_c_finalize(struct func *base, struct port *args, struct port *ret)
+{
+	assert(base->vtab == &func_c_vtab);
+	assert(base != NULL && base->def->language == FUNC_LANGUAGE_C);
+	(void)base;
+	(void)args;
+	(void)ret;
+	diag_set(ClientError, ER_UNSUPPORTED, "SQL", "user-defined C aggregate "
+		 "functions");
+	return -1;
+}
+
 static struct func_vtab func_c_vtab = {
 	.call = func_c_call,
+	.step = func_c_step,
+	.finalize = func_c_finalize,
 	.destroy = func_c_destroy,
 };
 

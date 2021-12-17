@@ -1289,6 +1289,88 @@ case OP_FunctionByName: {
 	break;
 }
 
+/*
+ * Opcode: UserAggStep P1 P2 P3 P4 *
+ * Synopsis: accum=r[P3] step(r[P2@P1])
+ *
+ * Execute the step function for a user-defined aggregate function. The step
+ * function has P1 arguments. P4 is a pointer to a function object that defines
+ * the aggregate function. Register P3 is the accumulator.
+ *
+ * The P1 arguments are taken from register P2 and its successors. The P2
+ * register must be immediately after the P3 register.
+ */
+case OP_UserAggStep: {
+	assert(pOp->p4type == P4_DYNAMIC);
+	assert(pOp->p1 == 0 || pOp->p3 == pOp->p2 - 1);
+	struct func *func = func_by_name(pOp->p4.z, strlen(pOp->p4.z));
+	if (func == NULL) {
+		diag_set(ClientError, ER_NO_SUCH_FUNCTION, pOp->p4.z);
+		goto abort_due_to_error;
+	}
+
+	struct Mem *argv = &aMem[pOp->p3];
+	struct port args;
+	struct port ret;
+
+	struct region *region = &fiber()->gc;
+	size_t region_svp = region_used(region);
+	port_vdbemem_create(&args, (struct sql_value *)argv, pOp->p1 + 1);
+	if (func->vtab->step(func, &args, &ret) != 0) {
+		region_truncate(region, region_svp);
+		goto abort_due_to_error;
+	}
+
+	uint32_t size;
+	struct Mem *mem = (struct Mem *)port_get_vdbemem(&ret, &size);
+	assert(size == 1);
+	bool is_error = mem == NULL || mem_copy(&aMem[pOp->p3], mem) != 0;
+	port_destroy(&ret);
+	region_truncate(region, region_svp);
+	if (is_error)
+		goto abort_due_to_error;
+	break;
+}
+
+/* Opcode: UserAggFinal P1 * * P4 *
+ * Synopsis: r[P1] = finalize(r[P1])
+ *
+ * Execute the finalize function for a user-defined aggregate function. P4 is a
+ * pointer to a function object that defines the aggregate function. Register P1
+ * is the accumulator. The result will be written to register P1.
+ */
+case OP_UserAggFinal: {
+	assert(pOp->p1 > 0 && pOp->p1 <= (p->nMem + 1 - p->nCursor));
+	assert(pOp->p4type == P4_DYNAMIC);
+	struct func *func = func_by_name(pOp->p4.z, strlen(pOp->p4.z));
+	if (func == NULL) {
+		diag_set(ClientError, ER_NO_SUCH_FUNCTION, pOp->p4.z);
+		goto abort_due_to_error;
+	}
+
+	struct Mem *argv = &aMem[pOp->p1];
+	struct port args;
+	struct port ret;
+
+	struct region *region = &fiber()->gc;
+	size_t region_svp = region_used(region);
+	port_vdbemem_create(&args, (struct sql_value *)argv, 1);
+	if (func->vtab->finalize(func, &args, &ret) != 0) {
+		region_truncate(region, region_svp);
+		goto abort_due_to_error;
+	}
+
+	uint32_t size;
+	struct Mem *mem = (struct Mem *)port_get_vdbemem(&ret, &size);
+	assert(size == 1);
+	bool is_error = mem == NULL || mem_copy(&aMem[pOp->p1], mem) != 0;
+	port_destroy(&ret);
+	region_truncate(region, region_svp);
+	if (is_error)
+		goto abort_due_to_error;
+	break;
+}
+
 /* Opcode: BitAnd P1 P2 P3 * *
  * Synopsis: r[P3]=r[P1]&r[P2]
  *

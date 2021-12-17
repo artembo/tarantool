@@ -49,6 +49,10 @@ struct func;
 struct func_vtab {
 	/** Call function with given arguments. */
 	int (*call)(struct func *func, struct port *args, struct port *ret);
+	/** Step of an aggregate function. */
+	int (*step)(struct func *func, struct port *args, struct port *ret);
+	/** Finalize of an aggregate function. */
+	int (*finalize)(struct func *func, struct port *args, struct port *ret);
 	/** Release implementation-specific function context. */
 	void (*destroy)(struct func *func);
 };

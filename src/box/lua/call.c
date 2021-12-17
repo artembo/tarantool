@@ -876,8 +876,36 @@ func_lua_call(struct func *func, struct port *args, struct port *ret)
 	return box_process_lua(HANDLER_CALL, &ctx, ret);
 }
 
+static inline int
+func_lua_step(struct func *func, struct port *args, struct port *ret)
+{
+	assert(func != NULL && func->def->language == FUNC_LANGUAGE_LUA);
+	assert(func->vtab == &func_lua_vtab);
+	struct execute_lua_ctx ctx;
+	ctx.name = tt_sprintf("%s.step", func->def->name);
+	ctx.name_len = func->def->name_len + 5;
+	ctx.args = args;
+	ctx.takes_raw_args = func->def->opts.takes_raw_args;
+	return box_process_lua(HANDLER_CALL, &ctx, ret);
+}
+
+static inline int
+func_lua_finalize(struct func *func, struct port *args, struct port *ret)
+{
+	assert(func != NULL && func->def->language == FUNC_LANGUAGE_LUA);
+	assert(func->vtab == &func_lua_vtab);
+	struct execute_lua_ctx ctx;
+	ctx.name = tt_sprintf("%s.finalize", func->def->name);
+	ctx.name_len = func->def->name_len + 9;
+	ctx.args = args;
+	ctx.takes_raw_args = func->def->opts.takes_raw_args;
+	return box_process_lua(HANDLER_CALL, &ctx, ret);
+}
+
 static struct func_vtab func_lua_vtab = {
 	.call = func_lua_call,
+	.step = func_lua_step,
+	.finalize = func_lua_finalize,
 	.destroy = func_lua_destroy,
 };
 
@@ -913,8 +941,37 @@ func_persistent_lua_call(struct func *base, struct port *args, struct port *ret)
 
 }
 
+static int
+func_persistent_lua_step(struct func *base, struct port *args, struct port *ret)
+{
+	assert(base->vtab == &func_persistent_lua_vtab);
+	assert(base != NULL && base->def->language == FUNC_LANGUAGE_LUA);
+	(void)base;
+	(void)args;
+	(void)ret;
+	diag_set(ClientError, ER_UNSUPPORTED, "SQL", "user-defined persistent "
+		 "aggregate functions");
+	return -1;
+}
+
+static int
+func_persistent_lua_finalize(struct func *base, struct port *args,
+			     struct port *ret)
+{
+	assert(base->vtab == &func_persistent_lua_vtab);
+	assert(base != NULL && base->def->language == FUNC_LANGUAGE_LUA);
+	(void)base;
+	(void)args;
+	(void)ret;
+	diag_set(ClientError, ER_UNSUPPORTED, "SQL", "user-defined persistent "
+		 "aggregate functions");
+	return -1;
+}
+
 static struct func_vtab func_persistent_lua_vtab = {
 	.call = func_persistent_lua_call,
+	.step = func_persistent_lua_step,
+	.finalize = func_persistent_lua_finalize,
 	.destroy = func_persistent_lua_destroy,
 };
 
