@@ -460,7 +460,7 @@ lbox_fillspace(struct lua_State *L, struct space *space, int i)
 }
 
 /** Export a space to Lua */
-static void
+void
 box_lua_space_new(struct lua_State *L, struct space *space)
 {
 	lua_getfield(L, LUA_GLOBALSINDEX, "box");
@@ -609,6 +609,7 @@ usage_error:
 void
 box_lua_space_init(struct lua_State *L)
 {
+	say_error("box_lua_space_init");
 	/* Register the trigger that will push space data to Lua. */
 	on_alter_space_in_lua.data = L;
 	trigger_add(&on_alter_space, &on_alter_space_in_lua);
@@ -702,6 +703,7 @@ box_lua_space_init(struct lua_State *L)
 	lua_pushnumber(L, SQL_BIND_PARAMETER_MAX);
 	lua_setfield(L, -2, "SQL_BIND_PARAMETER_MAX");
 	lua_pop(L, 2); /* box, schema */
+	say_error("box_lua_space_init END");
 
 	static const struct luaL_Reg space_internal_lib[] = {
 		{"frommap", lbox_space_frommap},

@@ -681,12 +681,12 @@ fiber_yield(void)
 	caller->caller = &cord->sched;
 
 	/** By convention, these triggers must not throw. */
-	if (! rlist_empty(&caller->on_yield))
+	if (! rlist_empty(&caller->on_yield)) {
 		trigger_run(&caller->on_yield, NULL);
+	}
 
 	if (cord_is_main())
 		cord_on_yield();
-
 	clock_set_on_csw(caller);
 
 	assert(callee->flags & FIBER_IS_READY || callee == &cord->sched);
@@ -913,7 +913,6 @@ fiber_loop(MAYBE_UNUSED void *data)
 	ASAN_FINISH_SWITCH_FIBER(NULL);
 	for (;;) {
 		struct fiber *fiber = fiber();
-
 		assert(fiber != NULL && fiber->f != NULL && fiber->fid != 0);
 		fiber->f_ret = fiber_invoke(fiber->f, fiber->f_data);
 		if (fiber->f_ret != 0) {
@@ -1444,6 +1443,7 @@ void
 cord_create(struct cord *cord, const char *name)
 {
 	cord() = cord;
+	say_error("Assing cord() to %s", name);
 	slab_cache_set_thread(&cord()->slabc);
 
 	cord->id = pthread_self();
@@ -1501,6 +1501,7 @@ cord_create(struct cord *cord, const char *name)
 void
 cord_destroy(struct cord *cord)
 {
+	say_error("cord destroy");
 	slab_cache_set_thread(&cord->slabc);
 	if (cord->loop)
 		ev_loop_destroy(cord->loop);
@@ -1567,6 +1568,7 @@ void *cord_thread_func(void *p)
 int
 cord_start(struct cord *cord, const char *name, void *(*f)(void *), void *arg)
 {
+	say_error("cord start %s", name);
 	int res = -1;
 	struct cord_thread_arg ct_arg = { cord, name, f, arg, false,
 		PTHREAD_MUTEX_INITIALIZER, PTHREAD_COND_INITIALIZER };
@@ -1708,6 +1710,7 @@ cord_cojoin(struct cord *cord)
 int
 break_ev_loop_f(struct trigger *trigger, void *event)
 {
+	say_error("BREAK EV LOOP");
 	(void) event;
 	trigger_clear(trigger);
 	ev_break(loop(), EVBREAK_ALL);

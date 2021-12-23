@@ -405,7 +405,7 @@ static const char *lua_modules_preload[] = {
 /**
  * Convert lua number or string to lua cdata 64bit number.
  */
-static int
+int
 lbox_tonumber64(struct lua_State *L)
 {
 	luaL_checkany(L, 1);
@@ -549,7 +549,7 @@ tarantool_lua_pushpath_env(struct lua_State *L, const char *envname)
  * Prepend the variable list of arguments to the Lua
  * package search path
  */
-static void
+void
 tarantool_lua_setpaths(struct lua_State *L)
 {
 	const char *home = getenv("HOME");
@@ -661,12 +661,32 @@ luaopen_tarantool(lua_State *L)
 }
 
 void
-tarantool_lua_init(const char *tarantool_bin, int argc, char **argv)
+tarantool_lua_load_modules(struct lua_State *L)
 {
-	lua_State *L = luaL_newstate();
-	if (L == NULL) {
-		panic("failed to initialize Lua");
+	lua_getfield(L, LUA_REGISTRYINDEX, "_LOADED");
+	for (const char **s = lua_modules; *s; s += 2) {
+		const char *modname = *s;
+		const char *modsrc = *(s + 1);
+		const char *modfile = lua_pushfstring(L,
+						      "@builtin/%s.lua", modname);
+		if (luaL_loadbuffer(L, modsrc, strlen(modsrc), modfile))
+			panic("Error loading Lua module %s...: %s",
+			      modname, lua_tostring(L, -1));
+		lua_pushstring(L, modname);
+		lua_call(L, 1, 1);
+		if (!lua_isnil(L, -1)) {
+			lua_setfield(L, -3, modname); /* package.loaded.modname = t */
+		} else {
+			lua_pop(L, 1); /* nil */
+		}
+		lua_pop(L, 1); /* chunkname */
 	}
+	lua_pop(L, 1); /* _LOADED */
+}
+
+void
+lua_state_init_libs(struct lua_State *L)
+{
 	luaL_openlibs(L);
 	tarantool_lua_setpaths(L);
 
@@ -707,41 +727,15 @@ tarantool_lua_init(const char *tarantool_bin, int argc, char **argv)
 	luaopen_zip(L);
 	lua_pop(L, 1);
 #endif
-#if defined(HAVE_GNU_READLINE)
-	/*
-	 * Disable libreadline signals handlers. All signals are handled in
-	 * main thread by libev watchers.
-	 */
-	rl_catch_signals = 0;
-	rl_catch_sigwinch = 0;
-#endif
 
-	lua_getfield(L, LUA_REGISTRYINDEX, "_LOADED");
-	for (const char **s = lua_modules; *s; s += 2) {
-		const char *modname = *s;
-		const char *modsrc = *(s + 1);
-		const char *modfile = lua_pushfstring(L,
-			"@builtin/%s.lua", modname);
-		if (luaL_loadbuffer(L, modsrc, strlen(modsrc), modfile))
-			panic("Error loading Lua module %s...: %s",
-			      modname, lua_tostring(L, -1));
-		lua_pushstring(L, modname);
-		lua_call(L, 1, 1);
-		if (!lua_isnil(L, -1)) {
-			lua_setfield(L, -3, modname); /* package.loaded.modname = t */
-		} else {
-			lua_pop(L, 1); /* nil */
-		}
-		lua_pop(L, 1); /* chunkname */
-	}
-	lua_pop(L, 1); /* _LOADED */
+	tarantool_lua_load_modules(L);
 
 	lua_getfield(L, LUA_REGISTRYINDEX, "_PRELOAD");
 	for (const char **s = lua_modules_preload; *s; s += 2) {
 		const char *modname = *s;
 		const char *modsrc = *(s + 1);
 		const char *modfile = lua_pushfstring(L,
-			"@builtin/%s.lua", modname);
+						      "@builtin/%s.lua", modname);
 		if (luaL_loadbuffer(L, modsrc, strlen(modsrc), modfile))
 			panic("Error loading Lua module %s...: %s",
 			      modname, lua_tostring(L, -1));
@@ -752,6 +746,24 @@ tarantool_lua_init(const char *tarantool_bin, int argc, char **argv)
 
 	luaopen_tarantool(L);
 	lua_pop(L, 1);
+}
+
+void
+tarantool_lua_init(const char *tarantool_bin, int argc, char **argv)
+{
+	lua_State *L = luaL_newstate();
+	if (L == NULL) {
+		panic("failed to initialize Lua");
+	}
+	lua_state_init_libs(L);
+#if defined(HAVE_GNU_READLINE)
+	/*
+	 * Disable libreadline signals handlers. All signals are handled in
+	 * main thread by libev watchers.
+	 */
+	rl_catch_signals = 0;
+	rl_catch_sigwinch = 0;
+#endif
 
 	lua_newtable(L);
 	lua_pushinteger(L, -1);

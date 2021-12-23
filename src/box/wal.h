@@ -76,6 +76,8 @@ extern const char *wal_mode_STRS[];
 
 extern int wal_dir_lock;
 
+extern bool is_thread_inited;
+
 #if defined(__cplusplus)
 extern "C" {
 #endif /* defined(__cplusplus) */
@@ -204,6 +206,9 @@ wal_atfork(void);
 
 enum wal_mode
 wal_mode(void);
+
+void
+wal_set_another_wal_pipe();
 
 /**
  * Wait until all submitted writes are successfully flushed

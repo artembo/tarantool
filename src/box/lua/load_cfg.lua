@@ -757,6 +757,11 @@ local function load_cfg(cfg)
             end,
             __call = locked(reload_cfg),
         })
+     if private.cfg_is_loaded() then
+         box_configured = nil
+         box_is_configured = true
+         return
+     end
 
     -- Check schema version of the snapshot we're about to recover, if any.
     -- Some schema versions (below 1.7.5) are incompatible with Tarantool 2.x

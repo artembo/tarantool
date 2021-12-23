@@ -788,15 +788,15 @@ say_format_plain_tail(char *buf, int len, int level, const char *filename,
 {
 	int total = 0;
 
-	struct cord *cord = cord();
-	if (cord) {
-		SNPRINT(total, snprintf, buf, len, " %s", cord->name);
-		if (fiber() && fiber()->fid != FIBER_ID_SCHED) {
-			SNPRINT(total, snprintf, buf, len, "/%llu/%s",
-				(long long)fiber()->fid,
-				fiber_name(fiber()));
-		}
-	}
+//	struct cord *cord = cord();
+//	if (cord) {
+//		SNPRINT(total, snprintf, buf, len, " %s", cord->name);
+//		if (fiber() && fiber()->fid != FIBER_ID_SCHED) {
+//			SNPRINT(total, snprintf, buf, len, "/%llu/%s",
+//				(long long)fiber()->fid,
+//				fiber_name(fiber()));
+//		}
+//	}
 
 	if (level == S_WARN || level == S_ERROR || level == S_SYSERROR) {
 		/* Primitive basename(filename) */

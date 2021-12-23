@@ -63,6 +63,8 @@ const char *wal_mode_STRS[WAL_MODE_MAX] = {
 
 int wal_dir_lock = -1;
 
+bool is_thread_inited= true;
+
 static int
 wal_write_async(struct journal *, struct journal_entry *);
 
@@ -121,6 +123,7 @@ struct wal_writer
 	 * priority pipe and DOES NOT support yield.
 	 */
 	struct cpipe tx_prio_pipe;
+	struct cpipe another_tx_pipe;
 	/**
 	 * The vector clock of the WAL writer. It's a bit behind
 	 * the vector clock of the transaction thread, since it
@@ -224,7 +227,12 @@ static struct cmsg_hop wal_request_route[] = {
 static void
 wal_msg_create(struct wal_msg *batch)
 {
-	cmsg_init(&batch->base, wal_request_route);
+	struct cmsg_hop *route = wal_request_route;
+	if (! cord_is_main()) {
+		route[0].pipe = box_thread_get_box_pipe();
+		assert(route[0].pipe != NULL);
+	}
+	cmsg_init(&batch->base, route);
 	batch->approx_len = 0;
 	stailq_create(&batch->commit);
 	stailq_create(&batch->rollback);
@@ -234,7 +242,8 @@ wal_msg_create(struct wal_msg *batch)
 static struct wal_msg *
 wal_msg(struct cmsg *msg)
 {
-	return msg->route == wal_request_route ? (struct wal_msg *) msg : NULL;
+	return (msg->route != NULL && msg->route[0].f == wal_write_to_disk) ?
+	       (struct wal_msg *) msg : NULL;
 }
 
 /** Write a request to a log in a single transaction. */
@@ -360,6 +369,7 @@ tx_complete_rollback(void)
 static void
 tx_complete_batch(struct cmsg *msg)
 {
+	say_error("tx_complete_batch");
 	struct wal_writer *writer = &wal_writer_singleton;
 	struct wal_msg *batch = (struct wal_msg *) msg;
 	/*
@@ -616,6 +626,7 @@ wal_sync_f(struct cbus_call_msg *data)
 int
 wal_sync(struct vclock *vclock)
 {
+	say_error("wal_sync");
 	ERROR_INJECT(ERRINJ_WAL_SYNC, {
 		diag_set(ClientError, ER_INJECTION, "wal sync");
 		return -1;
@@ -1031,9 +1042,12 @@ wal_assign_lsn(struct vclock *vclock_diff, struct vclock *base,
 		(*row)->tsn = tsn;
 }
 
+
+
 static void
 wal_write_to_disk(struct cmsg *msg)
 {
+	say_error("wal_write_to_disk");
 	struct wal_writer *writer = &wal_writer_singleton;
 	struct wal_msg *wal_msg = (struct wal_msg *) msg;
 	int err_code = JOURNAL_ENTRY_ERR_UNKNOWN;
@@ -1043,6 +1057,11 @@ wal_write_to_disk(struct cmsg *msg)
 	if (stailq_empty(&wal_msg->commit))
 		panic("Attempted to write an empty batch to WAL");
 
+//	if (!is_thread_inited) {
+//		say_error("created pipe for box thread");
+//		is_thread_inited= true;
+//		cpipe_create(&writer->another_tx_pipe, "box_thread_0");
+//	}
 	/*
 	 * Track all vclock changes made by this batch into
 	 * vclock_diff variable and then apply it into writers'
@@ -1209,6 +1228,7 @@ wal_writer_f(va_list ap)
 	 * even when tx fiber pool is used up by net messages.
 	 */
 	cpipe_create(&writer->tx_prio_pipe, "tx_prio");
+	box_init_box_pipes();
 
 	cbus_loop(&endpoint);
 
@@ -1269,8 +1289,13 @@ wal_write_async(struct journal *journal, struct journal_entry *entry)
 	}
 
 	struct wal_msg *batch;
-	if (!stailq_empty(&writer->wal_pipe.input) &&
-	    (batch = wal_msg(stailq_first_entry(&writer->wal_pipe.input,
+	say_error("wal_write_async in cord %s", cord()->name);
+	struct cpipe *pipe =
+		cord_is_main() ? &writer->wal_pipe : box_thread_get_wal_pipe();
+	assert(pipe != NULL);
+
+	if (!stailq_empty(&pipe->input) &&
+	    (batch = wal_msg(stailq_first_entry(&pipe->input,
 						struct cmsg, fifo)))) {
 
 		stailq_add_tail_entry(&batch->commit, entry, fifo);
@@ -1288,7 +1313,8 @@ wal_write_async(struct journal *journal, struct journal_entry *entry)
 		 * thread right away.
 		 */
 		stailq_add_tail_entry(&batch->commit, entry, fifo);
-		cpipe_push(&writer->wal_pipe, &batch->base);
+		cpipe_push(pipe, &batch->base);
+		say_error("entry res after push %ld", entry->res);
 	}
 	/*
 	 * Remember last entry sent to WAL. In case of rollback
@@ -1297,11 +1323,13 @@ wal_write_async(struct journal *journal, struct journal_entry *entry)
 	 */
 	writer->last_entry = entry;
 	batch->approx_len += entry->approx_len;
-	writer->wal_pipe.n_input += entry->n_rows * XROW_IOVMAX;
+	pipe->n_input += entry->n_rows * XROW_IOVMAX;
+	//assert(entry->res != JOURNAL_ENTRY_ERR_UNKNOWN);
 #ifndef NDEBUG
 	++errinj(ERRINJ_WAL_WRITE_COUNT, ERRINJ_INT)->iparam;
 #endif
-	cpipe_flush_input(&writer->wal_pipe);
+	cpipe_flush_input(pipe);
+	say_error("entry res after flush %ld", entry->res);
 	return 0;
 
 fail:
@@ -1312,6 +1340,7 @@ fail:
 static int
 wal_write(struct journal *journal, struct journal_entry *entry)
 {
+	say_error("WAL WRITE FROM CORD %s", cord()->name);
 	/*
 	 * We can reuse async WAL engine transparently
 	 * to the caller.
@@ -1322,6 +1351,7 @@ wal_write(struct journal *journal, struct journal_entry *entry)
 	bool cancellable = fiber_set_cancellable(false);
 	fiber_yield();
 	fiber_set_cancellable(cancellable);
+	say_error("entry res after yield %ld", entry->res);
 
 	return 0;
 }

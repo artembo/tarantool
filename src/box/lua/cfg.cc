@@ -66,6 +66,15 @@ lbox_cfg_load(struct lua_State *L)
 }
 
 static int
+lbox_cfg_is_loaded(struct lua_State *L)
+{
+	(void) L;
+	say_error("CFG IS LOADED");
+	lua_pushboolean(L, box_is_configured());
+	return 1;
+}
+
+static int
 lbox_cfg_set_listen(struct lua_State *L)
 {
 	if (box_listen() != 0)
@@ -444,6 +453,7 @@ box_lua_cfg_init(struct lua_State *L)
 		{"cfg_set_sql_cache_size", lbox_set_prepared_stmt_cache_size},
 		{"cfg_set_crash", lbox_cfg_set_crash},
 		{"cfg_set_txn_timeout", lbox_cfg_set_txn_timeout},
+		{"cfg_is_loaded", lbox_cfg_is_loaded},
 		{NULL, NULL}
 	};
 

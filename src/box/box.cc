@@ -2291,6 +2291,7 @@ box_index_id_by_name(uint32_t space_id, const char *name, uint32_t len)
 int
 box_process1(struct request *request, box_tuple_t **result)
 {
+	say_error("Called box_process1 from thread %s", cord()->name);
 	/* Allow to write to temporary spaces in read-only mode. */
 	struct space *space = space_cache_find(request->space_id);
 	if (space == NULL)
@@ -2317,7 +2318,9 @@ box_process1(struct request *request, box_tuple_t **result)
 		}
 	}
 
-	return box_process_rw(request, space, result);
+	int rc = box_process_rw(request, space, result);
+	say_error("Finished box_process1 from thread %s", cord()->name);
+	return rc;
 }
 
 API_EXPORT int
@@ -3619,6 +3622,7 @@ box_cfg_xc(void)
 			  IPROTO_MSG_MAX_MIN * IPROTO_FIBER_POOL_SIZE_FACTOR,
 			  FIBER_POOL_IDLE_TIMEOUT);
 	/* Add an extra endpoint for WAL wake up/rollback messages. */
+	box_thread_init_cbus_endpoints();
 	cbus_endpoint_create(&tx_prio_endpoint, "tx_prio", tx_prio_cb, &tx_prio_endpoint);
 
 	rmean_box = rmean_new(iproto_type_strs, IPROTO_TYPE_STAT_MAX);

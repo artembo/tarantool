@@ -43,6 +43,15 @@ extern bool start_loop;
 
 extern struct lua_State *tarantool_L;
 
+int
+lbox_tonumber64(struct lua_State *L);
+
+void
+tarantool_lua_load_modules(struct lua_State *L);
+
+void
+tarantool_lua_load_box_modules(struct lua_State *L);
+
 /**
  * Create an instance of Lua interpreter and load it with
  * Tarantool modules.  Creates a Lua state, imports global
@@ -54,6 +63,12 @@ extern struct lua_State *tarantool_L;
  */
 void
 tarantool_lua_init(const char *tarantool_bin, int argc, char **argv);
+
+void
+lua_state_init_libs(struct lua_State *state);
+
+void
+tarantool_lua_setpaths(struct lua_State *L);
 
 /** Free Lua subsystem resources. */
 void

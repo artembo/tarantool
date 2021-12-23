@@ -526,6 +526,7 @@ txn_free_or_wakeup(struct txn *txn)
 	if (txn->fiber == NULL)
 		txn_free(txn);
 	else {
+		say_error("TXN IS DONE");
 		txn_set_flags(txn, TXN_IS_DONE);
 		fiber_wakeup(txn->fiber);
 	}
@@ -560,6 +561,7 @@ txn_complete_fail(struct txn *txn)
 void
 txn_complete_success(struct txn *txn)
 {
+	say_error("txn complete success");
 	assert(!txn_has_flag(txn, TXN_IS_DONE));
 	assert(!txn_has_flag(txn, TXN_WAIT_SYNC));
 	assert(txn->signature >= 0);
@@ -588,6 +590,7 @@ txn_complete_success(struct txn *txn)
 static void
 txn_on_journal_write(struct journal_entry *entry)
 {
+	say_error("txn_on_journal_write");
 	struct txn *txn = entry->complete_data;
 	assert(txn->signature == TXN_SIGNATURE_UNKNOWN);
 	txn->signature = entry->res;
