@@ -27,7 +27,6 @@ g.before_each(function(g)
         replication = {
             helpers.instance_uri('server_', 1);
             helpers.instance_uri('server_', 2);
-            helpers.instance_uri('server_', 3);
         };
     }
 
@@ -35,16 +34,7 @@ g.before_each(function(g)
         {alias = 'server_1', box_cfg = g.box_cfg})
     g.server_2 = g.cluster:build_and_add_server(
         {alias = 'server_2', box_cfg = g.box_cfg})
-    g.server_3 = g.cluster:build_and_add_server(
-        {alias = 'server_3', box_cfg = g.box_cfg})
     g.cluster:start()
-
-    g.server_3:exec(function()
-        box.ctl.promote()
-    end)
-    g.server_3:wait_synchro_queue_owner()
-    g.server_1:wait_synchro_queue_owner(g.server_3:instance_id())
-    g.server_2:wait_synchro_queue_owner(g.server_3:instance_id())
 end)
 
 g.after_each(function(g)
@@ -89,11 +79,32 @@ g.before_test('test_fail_limbo_acked_promote', function(g)
             helpers.instance_uri('server_', 2);
         },
     })
+
+    g.server_3 = g.cluster:build_and_add_server(
+        {alias = 'server_3', box_cfg = g.box_cfg})
+    g.server_3:start()
+    g.server_3:exec(function()
+        box.ctl.promote()
+    end)
+    g.server_3:wait_synchro_queue_owner()
+end)
+
+g.after_test('test_fail_limbo_acked_promote', function(g)
+    g.server_3:drop()
+    g.server_3 = nil
 end)
 
 g.before_test('test_raft_leader_demote', function(g)
     g.server_1:box_config({election_mode = 'manual'})
     make_leader(g.server_1)
+end)
+
+g.before_test('test_wal_interfering_demote', function(g)
+    g.server_1:exec(function()
+        box.ctl.promote()
+    end)
+    g.server_1:wait_synchro_queue_owner()
+    g.server_2:wait_synchro_queue_owner(g.server_1:instance_id())
 end)
 
 -- Test that box_promote and box_demote
@@ -179,9 +190,12 @@ end
 -- Test interfering promotion for election_mode = 'off'
 -- while in WAL delay
 g.test_wal_interfering_promote = function(g)
-    local wal_write_count = g.server_1:exec(function()
+    local wal_write_count, raft_term = g.server_1:exec(function()
         box.error.injection.set('ERRINJ_WAL_DELAY', true)
-        return box.error.injection.get('ERRINJ_WAL_WRITE_COUNT')
+        local wal_write_count = box.error.injection.get('ERRINJ_WAL_WRITE_COUNT')
+        local raft_term = box.info.election.term
+
+        return wal_write_count, raft_term
     end)
 
     g.server_2:exec(function()
@@ -189,6 +203,13 @@ g.test_wal_interfering_promote = function(g)
     end)
     g.server_2:wait_synchro_queue_owner()
     g.server_1:wait_wal_write_count(wal_write_count + 1)
+
+    local new_raft_term = g.server_1:exec(function()
+        return box.info.election.term
+    end)
+    if new_raft_term > raft_term then
+        g.server_1:wait_wal_write_count(wal_write_count + 2)
+    end
 
     local ok, err = g.server_1:exec(function()
         local f = require('fiber').new(box.ctl.promote); f:set_joinable(true)
@@ -203,10 +224,13 @@ end
 -- Test interfering promotion for election_mode = 'off'
 -- while in txn_limbo delay
 g.test_limbo_empty_interfering_promote = function(g)
-    local wal_write_count, f = g.server_1:exec(function()
+    local wal_write_count, raft_term, f = g.server_1:exec(function()
         box.error.injection.set('ERRINJ_TXN_LIMBO_EMPTY_DELAY', true)
         local f = require('fiber').new(box.ctl.promote); f:set_joinable(true)
-        return box.error.injection.get('ERRINJ_WAL_WRITE_COUNT'), f:id()
+        local wal_write_count = box.error.injection.get('ERRINJ_WAL_WRITE_COUNT')
+        local raft_term = box.info.election.term
+
+        return wal_write_count, raft_term, f:id()
     end)
 
     g.server_2:exec(function()
@@ -214,6 +238,13 @@ g.test_limbo_empty_interfering_promote = function(g)
     end)
     g.server_2:wait_synchro_queue_owner()
     g.server_1:wait_wal_write_count(wal_write_count + 1)
+
+    local new_raft_term = g.server_1:exec(function()
+        return box.info.election.term
+    end)
+    if new_raft_term > raft_term then
+        g.server_1:wait_wal_write_count(wal_write_count + 2)
+    end
 
     local ok, err = g.server_1:exec(function(f)
         box.error.injection.set('ERRINJ_TXN_LIMBO_EMPTY_DELAY', false)
@@ -262,7 +293,6 @@ g.test_fail_limbo_acked_promote = function(g)
     g.server_2:exec(function()
         box.error.injection.set('ERRINJ_WAL_DELAY', false)
     end)
-    print(ok, err)
     luatest.assert(
         not ok and err.code == box.error.QUORUM_WAIT,
         'wait quorum failure not handled')
@@ -271,18 +301,28 @@ end
 -- Test interfering demotion for election_mode = 'off'
 -- while in WAL delay
 g.test_wal_interfering_demote = function(g)
-    local wal_write_count = g.server_3:exec(function()
+    local wal_write_count, raft_term = g.server_1:exec(function()
         box.error.injection.set('ERRINJ_WAL_DELAY', true)
-        return box.error.injection.get('ERRINJ_WAL_WRITE_COUNT')
+        local wal_write_count = box.error.injection.get('ERRINJ_WAL_WRITE_COUNT')
+        local raft_term = box.info.election.term
+
+        return wal_write_count, raft_term
     end)
 
     g.server_2:exec(function()
         box.ctl.promote()
     end)
     g.server_2:wait_synchro_queue_owner()
-    g.server_3:wait_wal_write_count(wal_write_count + 1)
+    g.server_1:wait_wal_write_count(wal_write_count + 1)
 
-    local ok, err = g.server_3:exec(function()
+    local new_raft_term = g.server_1:exec(function()
+        return box.info.election.term
+    end)
+    if new_raft_term > raft_term then
+        g.server_1:wait_wal_write_count(wal_write_count + 2)
+    end
+
+    local ok, err = g.server_1:exec(function()
         local f = require('fiber').new(box.ctl.demote); f:set_joinable(true)
         box.error.injection.set('ERRINJ_WAL_DELAY', false)
         return f:join()
@@ -295,19 +335,29 @@ end
 -- Test interfering demotion for election_mode = 'off'
 -- while in txn_limbo delay
 g.test_limbo_empty_interfering_demote = function(g)
-    local wal_write_count, f = g.server_3:exec(function()
+    local wal_write_count, raft_term, f = g.server_1:exec(function()
         box.error.injection.set('ERRINJ_TXN_LIMBO_EMPTY_DELAY', true)
-        local f = require('fiber').new(box.ctl.demote); f:set_joinable(true)
-        return box.error.injection.get('ERRINJ_WAL_WRITE_COUNT'), f:id()
+        local f = require('fiber').new(box.ctl.promote); f:set_joinable(true)
+        local wal_write_count = box.error.injection.get('ERRINJ_WAL_WRITE_COUNT')
+        local raft_term = box.info.election.term
+
+        return wal_write_count, raft_term, f:id()
     end)
 
     g.server_2:exec(function()
         box.ctl.promote()
     end)
     g.server_2:wait_synchro_queue_owner()
-    g.server_3:wait_wal_write_count(wal_write_count + 1)
+    g.server_1:wait_wal_write_count(wal_write_count + 1)
 
-    local ok, err = g.server_3:exec(function(f)
+    local new_raft_term = g.server_1:exec(function()
+        return box.info.election.term
+    end)
+    if new_raft_term > raft_term then
+        g.server_1:wait_wal_write_count(wal_write_count + 2)
+    end
+
+    local ok, err = g.server_1:exec(function(f)
         box.error.injection.set('ERRINJ_TXN_LIMBO_EMPTY_DELAY', false)
         return require('fiber').find(f):join()
     end, {f})
