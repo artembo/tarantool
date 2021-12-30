@@ -22,12 +22,13 @@ g.before_each(function(g)
     g.cluster = cluster:new({})
 
     g.box_cfg = {
-        election_mode = 'off';
+        election_mode = 'off',
+        read_only = false,
         replication_timeout = 0.1,
         replication = {
-            helpers.instance_uri('server_', 1);
-            helpers.instance_uri('server_', 2);
-        };
+            helpers.instance_uri('server_', 1),
+            helpers.instance_uri('server_', 2),
+        },
     }
 
     g.server_1 = g.cluster:build_and_add_server(
