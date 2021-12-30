@@ -202,8 +202,10 @@ g.test_wal_interfering_promote = function(g)
         box.ctl.promote()
     end)
     g.server_2:wait_synchro_queue_owner()
-    g.server_1:wait_wal_write_count(wal_write_count + 1)
 
+    -- @TODO should be changed to wait_wal_write_count(wal_write_count + 2)
+    -- when https://github.com/tarantool/tarantool/issues/6754 will be fixed
+    g.server_1:wait_wal_write_count(wal_write_count + 1)
     local new_raft_term = g.server_1:exec(function()
         return box.info.election.term
     end)
@@ -237,8 +239,10 @@ g.test_limbo_empty_interfering_promote = function(g)
         box.ctl.promote()
     end)
     g.server_2:wait_synchro_queue_owner()
-    g.server_1:wait_wal_write_count(wal_write_count + 1)
 
+    -- @TODO should be changed to wait_wal_write_count(wal_write_count + 2)
+    -- when https://github.com/tarantool/tarantool/issues/6754 will be fixed
+    g.server_1:wait_wal_write_count(wal_write_count + 1)
     local new_raft_term = g.server_1:exec(function()
         return box.info.election.term
     end)
@@ -313,8 +317,10 @@ g.test_wal_interfering_demote = function(g)
         box.ctl.promote()
     end)
     g.server_2:wait_synchro_queue_owner()
-    g.server_1:wait_wal_write_count(wal_write_count + 1)
 
+    -- @TODO should be changed to wait_wal_write_count(wal_write_count + 2)
+    -- when https://github.com/tarantool/tarantool/issues/6754 will be fixed
+    g.server_1:wait_wal_write_count(wal_write_count + 1)
     local new_raft_term = g.server_1:exec(function()
         return box.info.election.term
     end)
@@ -348,8 +354,10 @@ g.test_limbo_empty_interfering_demote = function(g)
         box.ctl.promote()
     end)
     g.server_2:wait_synchro_queue_owner()
-    g.server_1:wait_wal_write_count(wal_write_count + 1)
 
+    -- @TODO should be changed to wait_wal_write_count(wal_write_count + 2)
+    -- when https://github.com/tarantool/tarantool/issues/6754 will be fixed
+    g.server_1:wait_wal_write_count(wal_write_count + 1)
     local new_raft_term = g.server_1:exec(function()
         return box.info.election.term
     end)
