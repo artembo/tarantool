@@ -17,14 +17,15 @@ DEB_CMAKE_EXTRA_FLAGS := \
 	-DCMAKE_INSTALL_LOCALSTATEDIR=/var \
 	-DENABLE_DIST=ON \
 	-DWITH_SYSVINIT=ON \
-	-DWITH_SYSTEMD=$(WITH_SYSTEMD)
+	-DWITH_SYSTEMD=$(WITH_SYSTEMD) \
+	-DLUAJIT_ENABLE_GC64=ON
 
 # Install tarantool.service within tarantool-common package, but does not
 # install it within tarantool and tarantool-dev packages.
 DEB_DH_INSTALLINIT_ARGS                     := --name=tarantool
 DEB_DH_SYSTEMD_ENABLE_ARGS_tarantool        := --name=tarantool
-DEB_DH_SYSTEMD_ENABLE_ARGS_tarantool-common := --name=tarantool tarantool.service
-DEB_DH_SYSTEMD_START_ARGS_tarantool-common  := --no-restart-on-upgrade tarantool.service
+DEB_DH_SYSTEMD_ENABLE_ARGS_tarantool-gc64-common := --name=tarantool tarantool.service
+DEB_DH_SYSTEMD_START_ARGS_tarantool-gc64-common  := --no-restart-on-upgrade tarantool.service
 
 # Needed for proper backtraces in fiber.info()
 DEB_DH_STRIP_ARGS	        := -X/usr/bin/tarantool
@@ -35,14 +36,14 @@ include /usr/share/dpkg/buildflags.mk
 include /usr/share/cdbs/1/rules/debhelper.mk
 include /usr/share/cdbs/1/class/cmake.mk
 
-debian/tarantool-common.install:
+debian/tarantool-gc64-common.install:
 ifneq ($(wildcard /usr/bin/dh_systemd_start),)
-	cp -p debian/tarantool-common.install.systemd.in $@
+	cp -p debian/tarantool-gc64-common.install.systemd.in $@
 else
-	cp -p debian/tarantool-common.install.sysvinit.in $@
+	cp -p debian/tarantool-gc64-common.install.sysvinit.in $@
 endif
 
-build-indep: debian/tarantool-common.install
+build-indep: debian/tarantool-gc64-common.install
 
 tarball: clean
 	git describe --long --always > VERSION
@@ -68,4 +69,3 @@ clean::
 	rm -f src/trivia/config.h
 
 install/tarantool::
-

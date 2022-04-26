@@ -108,12 +108,13 @@ deploy_prepare:
 	(cd packpack && patch -p1 < ../extra/packpack-dont-decline-custom-version.patch)
 	rm -rf build
 
-package: deploy_prepare
+_package: deploy_prepare
 	# Set PRODUCT_NAME for the package itself.
 	if [ "$$(echo $(GC64) | sed 's/.*=//')" = ON ]; then                                                           \
 		export PRODUCT_NAME=tarantool-gc64; \
 		if [ "${OS}" = "ubuntu" ] || [ "${OS}" = "debian" ]; then \
-		    $$(sed -i'' -e 's/Package: tarantool$$/Package: tarantool-gc64/' debian/control); \
+			$$(mv debian debian_); \
+			$$(mv debian-gc64 debian); \
 		fi; \
 	else \
 		export PRODUCT_NAME=tarantool; \
@@ -125,10 +126,16 @@ package: deploy_prepare
 	fi;                                                                                                             \
 	echo VERSION=$$VERSION;                                                                                         \
 	PACKPACK_EXTRA_DOCKER_RUN_PARAMS="--network=host ${PACKPACK_EXTRA_DOCKER_RUN_PARAMS}"                           \
-	TARBALL_EXTRA_ARGS="--exclude=*.exe --exclude=*.dll"                                                            \
+	TARBALL_EXTRA_ARGS="--exclude=*.exe --exclude=*.dll --exclude=debian-gc64"                                      \
 	PRESERVE_ENVVARS="PRODUCT_NAME,TARBALL_EXTRA_ARGS,${PRESERVE_ENVVARS}" ./packpack/packpack
 
+package:
+	echo "Creating packages"; \
+	export CLEANUP_CMD="mv ./debian ./debian-gc64 && mv ./debian_ ./debian"; \
+	bash -c "trap 'trap - EXIT; ! [ -d debian_ ] || ($${CLEANUP_CMD})' EXIT; $(MAKE) -f .gitlab.mk _package"
+
 deploy:
+	echo "Deploying packages"; \
 	if [ -z "${REPO_TYPE}" ]; then \
 		echo "Env variable 'REPO_TYPE' must be defined!"; \
 		exit 1; \
