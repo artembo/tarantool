@@ -34,7 +34,7 @@ Homepage: http://tarantool.org/
 VCS-Browser: https://github.com/tarantool/tarantool
 VCS-Git: git://github.com/tarantool/tarantool.git
 
-Package: tarantool-gc64-common
+Package: tarantool-common
 Architecture: all
 Priority: optional
 Conflicts: tarantool-common (<< 2.2.1),
@@ -57,20 +57,20 @@ Depends: ${misc:Depends}, adduser, lsb-base,
 # Deps for built-in package manager
 # https://github.com/tarantool/tarantool/issues/2612
  openssl
-Recommends: tarantool-gc64-dev, git, build-essential, cmake
+Recommends: tarantool-dev, git, build-essential, cmake
 Description: Tarantool in-memory database - common files
  Tarantool is an in-memory database and Lua application server.
  This package provides scripts to work with tarantool configuration
  and log files.
 
 Package: tarantool-gc64
+Provides: tarantool (= ${binary:Version})
 Architecture: i386 amd64 armhf arm64
 Priority: optional
 Depends: ${shlibs:Depends}, ${misc:Depends}, netbase, libgomp1,
-  openssl, tarantool-gc64-common (>= 2.2.1),
+  openssl, tarantool-common (>= 2.2.1),
 # libcurl dependencies (except ones we have already)
  zlib1g
-Provides: tarantool
 Replaces: tarantool-lts
 Conflicts: tarantool-lts-modules,
  tarantool-lts-postgresql-module,
@@ -100,7 +100,7 @@ Description: In-memory database with a Lua application server
  .
  This package provides Tarantool command line interpreter and server.
 
-Package: tarantool-gc64-dev
+Package: tarantool-dev
 Architecture: i386 amd64 armhf arm64
 Priority: optional
 Section: libdevel
@@ -119,7 +119,7 @@ Conflicts: tarantool-lts-dev,
  tarantool-postgresql-plugin (<< 1.6~),
  libtarantool-dev (<< 1.6~)
 Depends: ${shlibs:Depends}, ${misc:Depends},
- tarantool-gc64 (= ${binary:Version})
+ tarantool (= ${binary:Version})
 Description: Tarantool in-memory database - development headers
  Tarantool is an in-memory database and Lua application server.
  This package provides server development files needed to build pluggable
