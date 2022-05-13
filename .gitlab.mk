@@ -103,8 +103,8 @@ RWS_BASE_URL=https://rws.tarantool.org
 PRODUCT_NAME=tarantool
 
 deploy_prepare:
-	rm -rf packpack
-	git clone https://github.com/packpack/packpack.git packpack
+	#rm -rf packpack
+	#git clone https://github.com/packpack/packpack.git packpack
 	(cd packpack && patch -p1 < ../extra/packpack-dont-decline-custom-version.patch)
 	rm -rf build
 
